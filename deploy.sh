@@ -1,29 +1,21 @@
 #!/bin/bash
 
-# --- 自动化部署脚本 for Debian 13 ---
-
-# 1. 确保脚本在出错时立即退出
 set -e
 
-# --- 颜色定义 (可选，用于美化输出) ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-echo -e "${GREEN}=== CAISO 项目自动化部署脚本启动 ===${NC}"
-
-# --- 步骤 1: 检查并安装 Docker 和 Docker Compose ---
+echo -e "${GREEN}=== 项目自动化部署脚本启动 ===${NC}"
 
 # 检查 docker 命令是否存在
 if ! command -v docker &> /dev/null
 then
     echo -e "${YELLOW}未检测到 Docker，正在开始安装...${NC}"
     
-    # 更新 apt 包列表
     apt-get update
     
-    # 安装必要组件
     apt-get install -y ca-certificates curl gnupg
     
     # 添加 Docker 的官方 GPG 密钥
@@ -36,7 +28,6 @@ then
       "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
       $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
     
-    # 再次更新 apt 包列表 (因为添加了新仓库)
     apt-get update
     
     # 安装 Docker Engine, CLI, Containerd, 和 Docker Compose 插件
@@ -47,7 +38,6 @@ else
     echo -e "${GREEN}Docker 已安装，跳过安装步骤。${NC}"
 fi
 
-# 检查 'docker compose' (V2) 命令
 if ! docker compose version &> /dev/null
 then
     echo -e "${RED}Docker Compose V2 (docker compose) 未找到!${NC}"
@@ -78,6 +68,5 @@ docker compose up -d
 # --- 步骤 5: 完成 ---
 
 echo -e "${GREEN}=== 部署完成! ===${NC}"
-echo -e "您的 CAISO 应用现在应该运行在服务器的 ${YELLOW}http://<服务器IP>:5000${NC} 上"
 echo -e "您可以使用 ${YELLOW}'docker ps'${NC} 查看正在运行的容器。"
 echo -e "您可以使用 ${YELLOW}'docker compose logs -f'${NC} 查看实时日志。"

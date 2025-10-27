@@ -1,21 +1,11 @@
-# Docker Compose 文件版本
 version: '3.8'
 
-# 定义服务
 services:
-  # 服务名称 (您可以随意命名，例如 'caiso-app')
   web:
-    # 构建配置
     build:
-      # 使用当前目录下的 Dockerfile 进行构建
       context: .
-    # 容器名称
-    container_name: caiso_web
-    # 端口映射:
-    # 将服务器的 5000 端口映射到容器的 5000 端口
-    # 格式: <宿主机端口>:<容器端口>
+    image: ca-energy:latest
+    container_name: ca-energy-web
     ports:
-      - "61081:5000"
-    # 重启策略:
-    # 'always' 表示除非手动停止，否则容器总会自动重启 (例如服务器重启或应用崩溃后)
+      - "61053:5000"
     restart: always
