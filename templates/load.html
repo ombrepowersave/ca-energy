@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+    <meta charset="UTF-8">
+    <title>电力负荷数据</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* 卡片式布局 */
+        .card {
+            max-width: 900px;
+            width: 90%;
+            margin: 30px auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 24px;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        /* 控制器样式 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        /* 按钮和日期输入 */
+        .btn,
+        .date-input {
+            padding: 8px 16px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .btn {
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+        }
+
+        .btn:disabled {
+            background-color: #ccc;
+        }
+
+        /* 独立按钮（如刷新） */
+        #refresh-btn {
+            display: block;
+            margin: 0 auto 20px auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="card">
+        <h2 class="section-title">实时负荷数据</h2>
+        <button id="refresh-btn" class="btn">刷新</button>
+        <div id="latest-load-chart-container">
+            <canvas id="latest-load-chart"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="section-title">历史负荷数据</h2>
+        <div class="controls">
+            <input type="date" id="date-input" class="date-input" max="">
+            <button id="history-btn" class="btn">查看</button>
+        </div>
+        <div id="history-load-chart-container">
+            <canvas id="history-load-chart"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="section-title">CAISO-TAC 负荷预测数据</h2>
+        <div class="controls">
+            <label for="forecast-date">选择日期：</label>
+            <input type="date" id="forecast-date" class="date-input" max="">
+            <button class="forecast-btn btn" data-option="5min">5分钟预测</button>
+            <button class="forecast-btn btn" data-option="15min">15分钟预测</button>
+            <button class="forecast-btn btn" data-option="hourly">每小时预测</button>
+        </div>
+        <div id="forecast-chart-container" style="margin-top:20px;">
+            <canvas id="forecast-chart"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="section-title">全区域历史负荷预测数据</h2>
+        <div class="controls">
+            <label for="all-region-forecast-date">选择日期：</label>
+            <input type="date" id="all-region-forecast-date" class="date-input" max="">
+            <button class="all-region-forecast-btn btn" data-option="5min">5分钟预测</button>
+            <button class="all-region-forecast-btn btn" data-option="15min">15分钟预测</button>
+            <button class="all-region-forecast-btn btn" data-option="hourly">每小时预测</button>
+        </div>
+        <div id="all-region-forecast-chart-container" style="margin-top:20px;">
+            <canvas id="all-region-forecast-chart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // --- 全局变量 (图表实例) ---
+        let latestLoadChart = null;
+        let historyChart = null;
+        let forecastChart = null;
+        let allRegionForecastChart = null;
+
+        // --- DOM 元素引用 ---
+        const dateInput = document.getElementById('date-input');
+        const forecastDateInput = document.getElementById('forecast-date');
+        const allRegionForecastDateInput = document.getElementById('all-region-forecast-date');
+
+        // --- 初始化 ---
+
+        /**
+         * 设置所有日期选择器的最大值为今天
+         */
+        function initializeDatePickers() {
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.max = today;
+            forecastDateInput.max = today;
+            allRegionForecastDateInput.max = today;
+        }
+
+        // --- 实时负荷 (Section 1) ---
+
+        async function fetchAndRenderLatestLoad() {
+            const btn = document.getElementById('refresh-btn');
+            btn.disabled = true;
+            btn.textContent = '加载中...';
+            try {
+                const resp = await fetch('/api/load/get_latest_date');
+                const data = await resp.json();
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    renderLatestLoadChart(data.timestamps, data.load_values);
+                }
+            } catch (e) {
+                alert('获取数据失败');
+            }
+            btn.disabled = false;
+            btn.textContent = '刷新';
+        }
+
+        function renderLatestLoadChart(timestamps, values) {
+            const ctx = document.getElementById('latest-load-chart').getContext('2d');
+
+            // 原始代码中的x轴处理逻辑保留 (使用 'linear' 类型)
+            const dataPoints = timestamps.map((t, i) => {
+                let h, m;
+                if (t.length >= 16) { // 假设是完整时间戳
+                    h = parseInt(t.slice(-8, -6));
+                    m = parseInt(t.slice(-5, -3));
+                } else { // 假设是 HH:MM
+                    h = parseInt(t.slice(0, 2));
+                    m = parseInt(t.slice(3, 5));
+                }
+                return { x: h + m / 60, y: values[i] };
+            });
+
+            if (latestLoadChart) {
+                latestLoadChart.data.datasets[0].data = dataPoints;
+                latestLoadChart.update();
+            } else {
+                latestLoadChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: generate24HourLabels(), // X轴标签
+                        datasets: [{
+                            label: '负荷值 (MW)',
+                            data: dataPoints, // 实际数据点
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            fill: true,
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                min: 0,
+                                max: 23.99,
+                                title: { display: true, text: '时间（小时）' },
+                                ticks: {
+                                    callback: (value) => Math.floor(value).toString().padStart(2, '0') + ':00',
+                                    stepSize: 1
+                                }
+                            },
+                            y: { title: { display: true, text: '负荷值 (MW)' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        function generate24HourLabels() {
+            return Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0') + ':00');
+        }
+
+
+        // --- 历史负荷 (Section 2) ---
+
+        async function fetchAndRenderHistory() {
+            const btn = document.getElementById('history-btn');
+            const date = dateInput.value;
+            if (!date) {
+                alert('请选择日期');
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = '加载中...';
+            try {
+                const resp = await fetch(`/api/load/get_history_date?date=${date}`);
+                const data = await resp.json();
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    renderHistoryChart(data.timestamps, data.load_values, date);
+                }
+            } catch (e) {
+                alert('获取数据失败');
+            }
+            btn.disabled = false;
+            btn.textContent = '查看';
+        }
+
+        function renderHistoryChart(labels, values, date) {
+            const ctx = document.getElementById('history-load-chart').getContext('2d');
+            const title = `历史负荷数据（${date}）`;
+            if (historyChart) {
+                historyChart.data.labels = labels;
+                historyChart.data.datasets[0].data = values;
+                historyChart.options.plugins.title.text = title;
+                historyChart.update();
+            } else {
+                historyChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '负荷值 (MW)',
+                            data: values,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            fill: true,
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { title: { display: true, text: title } },
+                        scales: {
+                            x: { title: { display: true, text: '时间' } },
+                            y: { title: { display: true, text: '负荷值 (MW)' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        // --- CAISO-TAC 负荷预测 (Section 3) ---
+
+        async function fetchAndRenderForecast(option) {
+            const date = forecastDateInput.value;
+            if (!date) {
+                alert('请选择日期');
+                return;
+            }
+            document.querySelectorAll('.forecast-btn').forEach(btn => btn.disabled = true);
+            try {
+                const resp = await fetch(`/api/load/get_load_forecast?date=${date}&option=${option}`);
+                const data = await resp.json();
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    renderForecastChart(data.timestamps, data.load_forecast_values, date, option);
+                }
+            } catch (e) {
+                alert('获取预测数据失败');
+            }
+            document.querySelectorAll('.forecast-btn').forEach(btn => btn.disabled = false);
+        }
+
+        function renderForecastChart(labels, values, date, option) {
+            const ctx = document.getElementById('forecast-chart').getContext('2d');
+            const optionMap = { '5min': '5分钟', '15min': '15分钟', 'hourly': '每小时' };
+            const title = `CAISO-TAC 负荷预测（${date}，${optionMap[option] || option}）`;
+
+            if (forecastChart) {
+                forecastChart.data.labels = labels;
+                forecastChart.data.datasets[0].data = values;
+                forecastChart.options.plugins.title.text = title;
+                forecastChart.update();
+            } else {
+                forecastChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '预测负荷值 (MW)',
+                            data: values,
+                            borderColor: 'rgba(255, 159, 64, 1)',
+                            backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                            fill: true,
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { title: { display: true, text: title } },
+                        scales: {
+                            x: { title: { display: true, text: '时间' } },
+                            y: { title: { display: true, text: '预测负荷值 (MW)' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        // --- 全区域负荷预测 (Section 4) ---
+
+        async function fetchAndRenderAllRegionForecast(option) {
+            const date = allRegionForecastDateInput.value;
+            if (!date) {
+                alert('请选择日期');
+                return;
+            }
+            document.querySelectorAll('.all-region-forecast-btn').forEach(btn => btn.disabled = true);
+            try {
+                const resp = await fetch(`/api/load/get_all_load_forecast?date=${date}&option=${option}`);
+                const data = await resp.json();
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    renderAllRegionForecastChart(data, date, option);
+                }
+            } catch (e) {
+                alert('获取全区域预测数据失败');
+            }
+            document.querySelectorAll('.all-region-forecast-btn').forEach(btn => btn.disabled = false);
+        }
+
+        // 用于生成不同颜色的 HSL 函数
+        const colorCache = {};
+        function getColor(index, total) {
+            if (!colorCache[index]) {
+                const hue = (index * (360 / total)) % 360;
+                colorCache[index] = `hsl(${hue}, 80%, 50%)`;
+            }
+            return colorCache[index];
+        }
+
+        function renderAllRegionForecastChart(data, date, option) {
+            const ctx = document.getElementById('all-region-forecast-chart').getContext('2d');
+            const optionMap = { '5min': '5分钟', '15min': '15分钟', 'hourly': '每小时' };
+            const title = `全区域负荷预测（${date}，${optionMap[option] || option}）`;
+
+            const areaNames = Object.keys(data);
+            const datasets = areaNames.map((areaName, index) => ({
+                label: areaName,
+                data: data[areaName].load_forecast_values,
+                borderColor: getColor(index, areaNames.length),
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.2,
+                pointRadius: 2
+            }));
+
+            const labels = (areaNames.length > 0) ? data[areaNames[0]].timestamps : [];
+
+            if (allRegionForecastChart) {
+                allRegionForecastChart.data.labels = labels;
+                allRegionForecastChart.data.datasets = datasets;
+                allRegionForecastChart.options.plugins.title.text = title;
+                allRegionForecastChart.update();
+            } else {
+                allRegionForecastChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { title: { display: true, text: title } },
+                        scales: {
+                            x: { title: { display: true, text: '时间' } },
+                            y: { title: { display: true, text: '预测负荷值 (MW)' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        // --- 事件绑定 ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeDatePickers();
+            fetchAndRenderLatestLoad(); // 页面加载时自动刷新一次实时数据
+        });
+
+        document.getElementById('refresh-btn').onclick = fetchAndRenderLatestLoad;
+        document.getElementById('history-btn').onclick = fetchAndRenderHistory;
+
+        document.querySelectorAll('.forecast-btn').forEach(btn => {
+            btn.onclick = () => fetchAndRenderForecast(btn.getAttribute('data-option'));
+        });
+
+        document.querySelectorAll('.all-region-forecast-btn').forEach(btn => {
+            btn.onclick = () => fetchAndRenderAllRegionForecast(btn.getAttribute('data-option'));
+        });
+
+    </script>
+</body>
+
+</html>

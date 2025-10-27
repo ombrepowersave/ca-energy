@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAISO 电力市场仪表板</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            display: grid;
+            /* 桌面端显示两列 */
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        /* 移动端响应式布局：变为单列 */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .dashboard-card {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1,
+        h2 {
+            text-align: center;
+        }
+
+        nav {
+            text-align: center;
+            margin-bottom: 24px;
+            background: #fff;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        nav a {
+            margin: 0 16px;
+            text-decoration: none;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+
+        /* 预留图表容器样式 */
+        #loadChart,
+        #fuelMixChart {
+            max-height: 400px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav>
+        <a href="/">首页</a>
+        <a href="/load">电网负荷详情</a>
+        <a href="/lmp">电网电价详情</a>
+        <a href="/storage">储能详情</a>
+    </nav>
+
+    <h1>CAISO 仪表板</h1>
+
+    <div class="container">
+        <div class="dashboard-card">
+            <h2>电网负荷</h2>
+            <p style="text-align:center;">详情请见 <a href="/load">电网负荷详情</a> 页面。</p>
+        </div>
+
+        <div class="dashboard-card">
+            <h2>实时燃料组合</h2>
+            <p style="text-align:center;">(此功能待开发)</p>
+        </div>
+    </div>
+
+</body>
+
+</html>

@@ -1,0 +1,266 @@
+<html lang="zh-cn">
+
+<head>
+    <meta charset="UTF-8">
+    <title>储能数据</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* 卡片式布局 */
+        .card {
+            max-width: 900px;
+            width: 90%;
+            margin: 30px auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .card-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #eee;
+            font-size: 1.25em;
+            font-weight: bold;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* 控制器样式 */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* 按钮和日期输入 */
+        .btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            color: white;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+
+        .btn:disabled {
+            background-color: #ccc;
+        }
+
+        .date-input {
+            font-size: 14px;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        /* 浮动按钮 (适配原样式) */
+        #refresh-storage-btn {
+            float: right;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <div class="card-header">
+            当日储能数据
+            <button id="refresh-storage-btn" class="btn btn-primary btn-sm">更新数据</button>
+        </div>
+        <div class="card-body">
+            <div id="storage-chart-container">
+                <canvas id="storage-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            历史储能数据
+        </div>
+        <div class="card-body">
+            <div class="controls">
+                <input type="date" id="history-date-input" class="date-input">
+                <button id="history-storage-btn" class="btn btn-secondary btn-sm">查看</button>
+            </div>
+            <div id="history-storage-chart-container" style="margin-top: 20px;">
+                <canvas id="history-storage-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 全局变量 ---
+        let storageChart = null;
+        let historyStorageChart = null;
+
+        // --- DOM 元素引用 ---
+        const refreshBtn = $('#refresh-storage-btn');
+        const historyBtn = $('#history-storage-btn');
+        const historyDateInput = $('#history-date-input');
+
+        // --- 初始化 ---
+
+        /**
+         * 设置日期选择器的最大值为今天
+         */
+        function initializeDatePicker() {
+            historyDateInput.attr('max', new Date().toISOString().split('T')[0]);
+        }
+
+        // --- 实时储能 (Section 1) ---
+
+        /**
+         * 获取并绘制当天的储能数据
+         */
+        function fetchAndDrawLatestStorage() {
+            refreshBtn.prop('disabled', true).text('加载中...');
+
+            $.getJSON('/api/storage/get_latest_storage', function (res) {
+                if (res.error) {
+                    alert(res.error);
+                    return;
+                }
+                renderStorageChart(res.timestamps, res.storage_values);
+            }).fail(function (xhr) {
+                alert('获取数据失败: ' + (xhr.responseJSON ? xhr.responseJSON.error : '未知错误'));
+            }).always(function () {
+                refreshBtn.prop('disabled', false).text('更新数据');
+            });
+        }
+
+        /**
+         * 渲染实时储能图表
+         */
+        function renderStorageChart(labels, values) {
+            const ctx = document.getElementById('storage-chart').getContext('2d');
+            if (storageChart) {
+                storageChart.data.labels = labels;
+                storageChart.data.datasets[0].data = values;
+                storageChart.update();
+            } else {
+                storageChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '储能(MW)',
+                            data: values,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                            fill: true,
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { title: { display: true, text: '当日储能数据' } },
+                        scales: {
+                            x: { title: { display: true, text: '时间' } },
+                            y: { title: { display: true, text: '储能(MW)' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        // --- 历史储能 (Section 2) ---
+
+        /**
+         * 获取并绘制历史储能数据
+         */
+        function fetchAndDrawHistoryStorage() {
+            const date = historyDateInput.val();
+            if (!date) {
+                alert('请选择日期');
+                return;
+            }
+
+            historyBtn.prop('disabled', true).text('加载中...');
+
+            $.getJSON('/api/storage/get_history_storage?date=' + date, function (res) {
+                if (res.error) {
+                    alert(res.error);
+                    return;
+                }
+                renderHistoryStorageChart(res.timestamps, res.storage_values, date);
+            }).fail(function (xhr) {
+                alert('获取历史储能数据失败: ' + (xhr.responseJSON ? xhr.responseJSON.error : '未知错误'));
+            }).always(function () {
+                historyBtn.prop('disabled', false).text('查看');
+            });
+        }
+
+        /**
+         * 渲染历史储能图表
+         */
+        function renderHistoryStorageChart(labels, values, date) {
+            const ctx = document.getElementById('history-storage-chart').getContext('2d');
+            const title = '历史储能数据（' + date + '）';
+
+            if (historyStorageChart) {
+                historyStorageChart.data.labels = labels;
+                historyStorageChart.data.datasets[0].data = values;
+                historyStorageChart.options.plugins.title.text = title;
+                historyStorageChart.update();
+            } else {
+                historyStorageChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '储能(MW)',
+                            data: values,
+                            borderColor: 'rgba(153, 102, 255, 1)',
+                            backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                            fill: true,
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { title: { display: true, text: title } },
+                        scales: {
+                            x: { title: { display: true, text: '时间' } },
+                            y: { title: { display: true, text: '储能(MW)' }, beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        // --- 事件绑定 (使用 jQuery) ---
+        $(document).ready(function () {
+            initializeDatePicker();
+
+            // 页面加载时获取一次当日数据
+            fetchAndDrawLatestStorage();
+
+            // 按钮点击事件
+            refreshBtn.click(fetchAndDrawLatestStorage);
+            historyBtn.click(fetchAndDrawHistoryStorage);
+        });
+
+    </script>
+</body>
+
+</html>

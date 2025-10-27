@@ -1,0 +1,24 @@
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# IDE 和工具配置
+.vscode/
+.idea/
+.git/
+.gitignore
+
+# 虚拟环境 (如果存在)
+venv/
+*.venv/
+
+# Docker 自身文件
+Dockerfile
+docker-compose.yml
+deploy.sh
